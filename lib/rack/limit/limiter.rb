@@ -26,7 +26,14 @@ module Rack
           required['params'].each_pair { |param, message| return http_error(403, message) unless params[param] } if required
 
           request.rule = rule
-          return rate_limit_exceeded(request) unless allowed?(request)
+
+          if blacklisted?(request)
+            return rate_limit_exceeded(request)
+          end
+
+          unless whitelisted?(request)
+            return rate_limit_exceeded(request) unless allowed?(request)
+          end
         end
 
         app.call(env)
@@ -34,6 +41,15 @@ module Rack
 
       def get_rule(request)
         rules.find { |rule| paths_matched?(request, rule) && restrict_on_domain?(request, rule) }
+      end
+
+      def whitelisted?(request)
+        _, limit_identifier = get_limit_params(request)
+        (request.rule['whitelist'] || []).include?(limit_identifier)
+      end
+
+      def blacklisted?(request)
+        false
       end
 
       def paths_matched?(request, rule)
@@ -84,22 +100,25 @@ module Rack
       end
 
       def client_identifier(request)
+        limit_source, limit_identifier = get_limit_params(request)
+        return [limit_identifier, request.params[limit_identifier]].join(':') if limit_source == 'params'
+        return request.path if limit_source == 'path'
+        request.ip.to_s
+      end
+
+      def get_limit_params(request)
         rule = request.rule
-        limit_by = rule && rule['limit_by']
+        limit_source = limit_by = rule && rule['limit_by']
 
         if limit_by
           if limit_by.is_a?(Hash)
             limit_source = limit_by.keys.first
             limit_identifier = limit_by[limit_source]
+            [limit_source, limit_identifier]
           else
-            limit_source = limit_by
+            [limit_source]
           end
-
-          return [limit_identifier, request.params[limit_identifier]].join(':') if limit_source == 'params'
-          return request.path if limit_source == 'path'
         end
-
-        request.ip.to_s
       end
 
       def cache_key(request)
