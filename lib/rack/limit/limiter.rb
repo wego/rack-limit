@@ -14,7 +14,11 @@ module Rack
       end
 
       def rules
-        @cached_rules ||= options[:rules].map { |rule| rule['path'] = Regexp.new(rule['path']) if rule['regex']; rule }
+        @cached_rules ||= options[:rules].map do |rule|
+          rule['path'] = Regexp.new(rule['path']) if rule['regex']
+          rule['whitelist'] = rule['whitelist'].map(&:to_s) if rule['whitelist']
+          rule
+        end
       end
 
       def call(env)
@@ -48,7 +52,7 @@ module Rack
         puts request.rule['whitelist'].inspect
         if limit_source == 'params'
           value = request.params[limit_identifier]
-          (request.rule['whitelist'] || []).include?(value)
+          (request.rule['whitelist'].map(&:to_s) || []).include?(value)
         end
       end
 
