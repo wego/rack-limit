@@ -48,16 +48,23 @@ module Rack
       end
 
       def whitelisted?(request)
-        limit_source, limit_identifier = get_limit_params(request)
-        puts request.rule['whitelist'].inspect
-        if limit_source == 'params'
-          value = request.params[limit_identifier]
-          (request.rule['whitelist'].map(&:to_s) || []).include?(value)
-        end
+        in_list?(request, 'whitelist')
       end
 
       def blacklisted?(request)
-        false
+        in_list?(request, 'blacklist')
+      end
+
+      def in_list?(request, list)
+        limit_source, limit_identifier = get_limit_params(request)
+        if limit_source == 'params'
+          value = request.params[limit_identifier]
+        elsif limit_source == 'path'
+          value = request.path
+        else
+          value = ''
+        end
+        (request.rule[list] || []).include(value)
       end
 
       def paths_matched?(request, rule)
