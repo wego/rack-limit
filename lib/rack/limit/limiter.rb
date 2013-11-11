@@ -17,6 +17,7 @@ module Rack
         @cached_rules ||= options[:rules].map do |rule|
           rule['path'] = Regexp.new(rule['path']) if rule['regex']
           rule['whitelist'] = rule['whitelist'].map(&:to_s) if rule['whitelist']
+          rule['blacklist'] = rule['blacklist'].map(&:to_s) if rule['blacklist']
           rule
         end
       end
