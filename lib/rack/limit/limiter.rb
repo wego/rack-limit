@@ -16,6 +16,8 @@ module Rack
       def rules
         @cached_rules ||= options[:rules].map do |rule|
           rule['path'] = Regexp.new(rule['path']) if rule['regex']
+
+          # just making sure we compare the same thing.
           rule['whitelist'] = rule['whitelist'].map(&:to_s) if rule['whitelist']
           rule['blacklist'] = rule['blacklist'].map(&:to_s) if rule['blacklist']
           rule
@@ -65,8 +67,6 @@ module Rack
         else
           value = ''
         end
-        puts request.rule[list].inspect
-        puts value
         (request.rule[list] || []).include?(value)
       end
 
