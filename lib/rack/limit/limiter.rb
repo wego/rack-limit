@@ -44,8 +44,11 @@ module Rack
       end
 
       def whitelisted?(request)
-        _, limit_identifier = get_limit_params(request)
-        (request.rule['whitelist'] || []).include?(limit_identifier)
+        limit_source, limit_identifier = get_limit_params(request)
+        if limit_source == 'params'
+          value = request.params[limit_identifier]
+          (request.rule['whitelist'] || []).include?(value)
+        end
       end
 
       def blacklisted?(request)
