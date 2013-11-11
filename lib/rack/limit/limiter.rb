@@ -45,6 +45,7 @@ module Rack
 
       def whitelisted?(request)
         limit_source, limit_identifier = get_limit_params(request)
+        puts request.rule['whitelist'].inspect
         if limit_source == 'params'
           value = request.params[limit_identifier]
           (request.rule['whitelist'] || []).include?(value)
