@@ -64,7 +64,7 @@ module Rack
         else
           value = ''
         end
-        (request.rule[list] || []).include(value)
+        (request.rule[list] || []).include?(value)
       end
 
       def paths_matched?(request, rule)
