@@ -64,6 +64,8 @@ module Rack
         else
           value = ''
         end
+        puts request.rule[list].inspect
+        puts value
         (request.rule[list] || []).include?(value)
       end
 
