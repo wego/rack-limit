@@ -18,8 +18,10 @@ module Rack
           rule['path'] = Regexp.new(rule['path']) if rule['regex']
 
           # just making sure we compare the same thing.
-          rule['whitelist'] = rule['whitelist'].map(&:to_s) if rule['whitelist']
-          rule['blacklist'] = rule['blacklist'].map(&:to_s) if rule['blacklist']
+          ['whitelist', 'blacklist'].each do |list|
+            rule[list] = rule[list].map(&:to_s) if rule[list]
+          end
+
           rule
         end
       end
@@ -82,7 +84,7 @@ module Rack
 
       def allowed?(request)
         count = cache_get(request)
-        allowed = count < (request.rule['max'] || options[:max] || 1000).to_i
+        allowed = count < (limit(request) || request.rule['max'] || options[:max] || 1000).to_i
         begin
           cache_set(request, count + 1)
           allowed
@@ -105,6 +107,15 @@ module Rack
         begin
           cache.set(key, value)
         rescue
+        end
+      end
+
+      def limit(request)
+        if request.rule['prefix']
+          begin
+            cache.get(request.rule['prefix'])
+          rescue
+          end
         end
       end
 
