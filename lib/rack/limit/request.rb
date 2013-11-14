@@ -1,3 +1,5 @@
+require 'rack'
+
 module Rack
   module Limit
     class Request < Rack::Request

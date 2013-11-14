@@ -1,5 +1,3 @@
-require 'rack'
-
 module Rack
   module Limit
     class Limiter
