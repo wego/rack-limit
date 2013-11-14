@@ -3,8 +3,7 @@ require 'rack'
 module Rack
   module Limit
     class Request < Rack::Request
-      attr_accessor :rule
-      attr_accessor :identifier
+      attr_accessor :rule, :identifier, :count, :limit
 
       def initialize(env, rules)
         super env

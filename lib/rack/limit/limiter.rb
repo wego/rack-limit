@@ -22,8 +22,8 @@ module Rack
       end
 
       def call(env)
+        puts env.inspect
         request = Request.new(env, rules)
-
         if rule = request.rule
           params = request.params
           required = rule['required']
@@ -39,9 +39,16 @@ module Rack
         app.call(env)
       end
 
+      def update_header(env)
+        status, header, body = app.call(env)
+        header['X-RackLimit-Limit'] = request.limit
+        header['X-RackLimit-Remaining'] = request.limit - request.count
+        [status, header, body]
+      end
+
       def allowed?(request)
         count = cache_get(request)
-        allowed = count < (limit(request) || options[:max] || 1000).to_i
+        allowed = count < limit(request)
         begin
           cache_set(request, count + 1)
           allowed
@@ -68,12 +75,14 @@ module Rack
       end
 
       def limit(request)
-        if request.rule['prefix']
-          begin
-            cache.get("#{request.rule['prefix']}:#{request.identifier}")
-          rescue
-          end
-        end || request.rule['max']
+        request.limit = if request.rule['prefix']
+                          begin
+                            cache.get("#{request.rule['prefix']}:#{request.identifier}")
+                          rescue
+                          end
+                        else
+                          request.rule['max'] || options[:max] || 1000
+                        end.to_i
       end
 
       def expiry(strategy = 'daily')
