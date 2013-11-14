@@ -12,7 +12,6 @@ module Rack
         @cached_rules ||= options[:rules].map do |rule|
           rule['path'] = Regexp.new(rule['path']) if rule['regex']
 
-          # just making sure we compare the same thing.
           ['whitelist', 'blacklist'].each do |list|
             rule[list] = rule[list].map(&:to_s) if rule[list]
           end
@@ -22,7 +21,6 @@ module Rack
       end
 
       def call(env)
-        puts env.inspect
         request = Request.new(env, rules)
         if rule = request.rule
           params = request.params
@@ -32,18 +30,27 @@ module Rack
           return rate_limit_exceeded(request) if request.blacklisted?
 
           unless request.whitelisted?
-            return rate_limit_exceeded(request) unless allowed?(request)
+            allow = allowed?(request)
+            if allow
+              status, headers, body = app.call(env)
+              return [status, headers.merge(update_headers(request)), body]
+            else
+              return rate_limit_exceeded(request, update_headers(request))
+            end
           end
         end
 
         app.call(env)
       end
 
-      def update_header(env)
-        status, header, body = app.call(env)
-        header['X-RackLimit-Limit'] = request.limit
-        header['X-RackLimit-Remaining'] = request.limit - request.count
-        [status, header, body]
+      def update_headers(request)
+        headers = {}
+        headers['X-RackLimit-Limit'] = request.limit.to_s if request.limit
+        if request.limit && request.count
+          remaining = request.limit - request.count
+          headers['X-RackLimit-Remaining'] = (remaining > 0 ? remaining : 0).to_s
+        end
+        headers
       end
 
       def allowed?(request)
@@ -75,14 +82,13 @@ module Rack
       end
 
       def limit(request)
-        request.limit = if request.rule['prefix']
-                          begin
-                            cache.get("#{request.rule['prefix']}:#{request.identifier}")
-                          rescue
-                          end
-                        else
-                          request.rule['max'] || options[:max] || 1000
-                        end.to_i
+        lim = if request.rule['prefix']
+                begin
+                  cache.get("#{request.rule['prefix']}:#{request.identifier}")
+                rescue
+                end
+              end || request.limits || options[:max] || 1000
+        request.limit = lim.to_i
       end
 
       def expiry(strategy = 'daily')
@@ -107,8 +113,8 @@ module Rack
         [code, {'Content-Type' => 'text/plain; charset=utf-8'}.merge(headers), message.nil? ? [http_status(code) + "\n"] : [message + "\n"]]
       end
 
-      def rate_limit_exceeded(request)
-        http_error(request.rule['code'] || 403, request.rule['message'])
+      def rate_limit_exceeded(request, headers = {})
+        http_error(request.rule['code'] || 403, request.rule['message'], headers)
       end
 
       def http_status(code)

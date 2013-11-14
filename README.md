@@ -19,12 +19,16 @@ In `config/rack_limit.yml`:
   #domain: 'api.domain.com' # will rate limit only at this domain if given
   limit_by:
     params: api_key
-  whitelist: # based on the limit_by params above
+  prefix: 'ratelimit'
+  whitelist:
     - 567
     - 678
   blacklist:
     - 999
     - 777
+  limits:
+    123: 5 # will rate limit api_key 123 to 5
+    234: 10
   required:
     params:
       api_key: "API KEY REQUIRED"
@@ -41,6 +45,8 @@ In `config/rack_limit.yml`:
   strategy: hourly
   limit_by: path
   max: 2
+  limits:
+    /flights/123: 5 # will rate limit this path to 5. the rest uses max => 2
 
 -
   path: ^\/users\/?

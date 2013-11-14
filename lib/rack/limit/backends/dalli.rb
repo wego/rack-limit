@@ -5,7 +5,7 @@ module Rack
         def allowed?(request)
           begin
             count = cache_get(request)
-            count <= (limit(request) || options[:max] || 1000).to_i
+            count <= limit(request)
           rescue => e
             puts e
             true
@@ -14,7 +14,7 @@ module Rack
 
         def cache_get(request)
           key = cache_key(request)
-          count = cache.incr(key) || 1
+          request.count = count = cache.incr(key) || 1
           cache.set(key, count, expiry(request.rule['strategy']), raw: true) if count == 1
           count
         end
