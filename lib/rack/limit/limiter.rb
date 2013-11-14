@@ -4,7 +4,73 @@ module Rack
   module Limit
     class Limiter
 
-      class Request < Rack::Request; attr_accessor :rule; end
+      class Request < Rack::Request
+        attr_accessor :rule
+        attr_accessor :identifier
+
+        def initialize(env, rules)
+          super env
+          @rule = rules.find { |rule| paths_matched?(rule) && restrict_on_domain?(rule) }
+        end
+
+        def blacklisted?
+          in_list?('blacklist')
+        end
+
+        def whitelisted?
+          in_list?('whitelist')
+        end
+
+        def paths_matched?(rule)
+          rule['regex'] ? path =~ rule['path'] : path == rule['path']
+        end
+
+        def restrict_on_domain?(rule)
+          domain = env['server_name']
+          rule['domain'] ? domain == rule['domain'] : true
+        end
+
+        def in_list?(list)
+          limit_source, limit_identifier = get_limit_params
+          if limit_source == 'params'
+            value = params[limit_identifier]
+          elsif limit_source == 'path'
+            value = path
+          else
+            value = ''
+          end
+          (rule[list] || []).include?(value)
+        end
+
+        def get_limit_params
+          limit_source = limit_by = rule && rule['limit_by']
+
+          if limit_by
+            if limit_by.is_a?(Hash)
+              limit_source = limit_by.keys.first
+              limit_identifier = limit_by[limit_source]
+              [limit_source, limit_identifier]
+            else
+              [limit_source]
+            end
+          end
+        end
+
+        def client_identifier
+          limit_source, limit_identifier = get_limit_params
+          if limit_source == 'params'
+            [limit_identifier, params[limit_identifier]].join(':')
+          elsif limit_source == 'path'
+            path 
+          else
+            ip.to_s
+          end
+        end
+
+        def identifier
+          @identifier ||= client_identifier
+        end
+      end
 
       attr_accessor :app, :options
 
@@ -27,59 +93,18 @@ module Rack
       end
 
       def call(env)
-        request = Request.new(env)
+        request = Request.new(env, rules)
 
-        if rule = get_rule(request)
+        if rule = request.rule
           params = request.params
           required = rule['required']
           required['params'].each_pair { |param, message| return http_error(403, message) unless params[param] } if required
 
-          request.rule = rule
-
-          if blacklisted?(request)
-            return rate_limit_exceeded(request)
-          end
-
-          unless whitelisted?(request)
-            return rate_limit_exceeded(request) unless allowed?(request)
-          end
+          return rate_limit_exceeded(request) if request.blacklisted?
+          return rate_limit_exceeded(request) unless request.whitelisted? && allowed?(request)
         end
 
         app.call(env)
-      end
-
-      def get_rule(request)
-        rules.find { |rule| paths_matched?(request, rule) && restrict_on_domain?(request, rule) }
-      end
-
-      def whitelisted?(request)
-        in_list?(request, 'whitelist')
-      end
-
-      def blacklisted?(request)
-        in_list?(request, 'blacklist')
-      end
-
-      def in_list?(request, list)
-        limit_source, limit_identifier = get_limit_params(request)
-        if limit_source == 'params'
-          value = request.params[limit_identifier]
-        elsif limit_source == 'path'
-          value = request.path
-        else
-          value = ''
-        end
-        (request.rule[list] || []).include?(value)
-      end
-
-      def paths_matched?(request, rule)
-        path = request.path
-        rule['regex'] ? path =~ rule['path'] : path == rule['path']
-      end
-
-      def restrict_on_domain?(request, rule)
-        domain = request.env['server_name']
-        rule['domain'] ? domain == rule['domain'] : true
       end
 
       def allowed?(request)
@@ -113,7 +138,7 @@ module Rack
       def limit(request)
         if request.rule['prefix']
           begin
-            cache.get(request.rule['prefix'])
+            cache.get("#{request.rule['prefix']}:#{request.identifier}")
           rescue
           end
         end
@@ -128,30 +153,9 @@ module Rack
         end
       end
 
-      def client_identifier(request)
-        limit_source, limit_identifier = get_limit_params(request)
-        return [limit_identifier, request.params[limit_identifier]].join(':') if limit_source == 'params'
-        return request.path if limit_source == 'path'
-        request.ip.to_s
-      end
-
-      def get_limit_params(request)
-        rule = request.rule
-        limit_source = limit_by = rule && rule['limit_by']
-
-        if limit_by
-          if limit_by.is_a?(Hash)
-            limit_source = limit_by.keys.first
-            limit_identifier = limit_by[limit_source]
-            [limit_source, limit_identifier]
-          else
-            [limit_source]
-          end
-        end
-      end
 
       def cache_key(request)
-        [options[:key_prefix] || options[:prefix] || 'throttle', request.rule['prefix'], client_identifier(request)].join(':')
+        [options[:key_prefix] || options[:prefix] || 'throttle', request.rule['prefix'], request.client_identifier].join(':')
       end
 
       def cache
