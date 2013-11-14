@@ -101,6 +101,7 @@ module Rack
           required['params'].each_pair { |param, message| return http_error(403, message) unless params[param] } if required
 
           return rate_limit_exceeded(request) if request.blacklisted?
+
           unless request.whitelisted?
             return rate_limit_exceeded(request) unless allowed?(request)
           end
@@ -140,7 +141,7 @@ module Rack
       def limit(request)
         if request.rule['prefix']
           begin
-            cache.get("#{request.rule['prefix']}:#{request.identifier}").to_i
+            cache.get("#{request.rule['prefix']}:#{request.identifier}")
           rescue
           end
         end || request.rule['max']
