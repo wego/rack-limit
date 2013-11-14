@@ -101,7 +101,9 @@ module Rack
           required['params'].each_pair { |param, message| return http_error(403, message) unless params[param] } if required
 
           return rate_limit_exceeded(request) if request.blacklisted?
-          return rate_limit_exceeded(request) unless request.whitelisted? && allowed?(request)
+          unless request.whitelisted?
+            return rate_limit_exceeded(request) unless allowed?(request)
+          end
         end
 
         app.call(env)
@@ -109,7 +111,7 @@ module Rack
 
       def allowed?(request)
         count = cache_get(request)
-        allowed = count < (limit(request) || request.rule['max'] || options[:max] || 1000).to_i
+        allowed = count < (limit(request) || options[:max] || 1000).to_i
         begin
           cache_set(request, count + 1)
           allowed
@@ -138,10 +140,10 @@ module Rack
       def limit(request)
         if request.rule['prefix']
           begin
-            cache.get("#{request.rule['prefix']}:#{request.identifier}")
+            cache.get("#{request.rule['prefix']}:#{request.identifier}").to_i
           rescue
           end
-        end
+        end || request.rule['max']
       end
 
       def expiry(strategy = 'daily')
