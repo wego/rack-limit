@@ -22,10 +22,9 @@ module Rack
 
       def call(env)
         request = Request.new(env, rules)
-        if rule = request.rule
-          params = request.params
-          required = rule['required']
-          required['params'].each_pair { |param, message| return http_error(403, message) unless params[param] } if required
+        if request.rule
+          missing_param, message = request.missing_requirement
+          return http_error(403, message) if missing_param
 
           return rate_limit_exceeded(request) if request.blacklisted?
 
@@ -82,11 +81,9 @@ module Rack
       end
 
       def limit(request)
-        lim = if request.rule['prefix']
-                begin
-                  cache.get("#{request.rule['prefix']}:#{request.identifier}")
-                rescue
-                end
+        lim = begin
+                cache.get([request.rule['prefix'], request.identifier].compact.join(':'))
+              rescue
               end || request.limits || options[:max] || 1000
         request.limit = lim.to_i
       end
@@ -100,9 +97,17 @@ module Rack
         end
       end
 
+      def timestamp(strategy = 'daily')
+        case strategy
+        when 'hourly'
+          Time.now.strftime("%Y%m%d%H00")
+        else
+          Time.now.strftime("%Y%m%d")
+        end
+      end
 
       def cache_key(request)
-        [options[:key_prefix] || options[:prefix] || 'ratelimit', request.rule['prefix'], request.client_identifier].compact.join(':')
+        [options[:key_prefix] || options[:prefix] || 'ratelimit', timestamp(request.strategy) , request.client_identifier].compact.join(':')
       end
 
       def cache

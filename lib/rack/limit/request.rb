@@ -3,11 +3,23 @@ require 'rack'
 module Rack
   module Limit
     class Request < Rack::Request
-      attr_accessor :rule, :identifier, :count, :limit
+      attr_accessor :rule, :identifier, :count, :limit, :missing_requirement
 
       def initialize(env, rules)
         super env
         @rule = rules.find { |rule| paths_matched?(rule) && restrict_on_domain?(rule) }
+        check_required
+      end
+
+      def check_required
+        requirements = rule['required']
+        return unless requirements
+
+        @missing_requirement = if requirements['params'].is_a?(Hash)
+          requirements['params'].find { |param, message| !params[param] }
+        else
+          requirements['params'] unless params[requirements['params']]
+        end
       end
 
       def blacklisted?
@@ -71,6 +83,10 @@ module Rack
       def limits
         key = identifier.split(':').last
         (rule['limits'] || {}).reduce({}) { |a,c| a[c.first.to_s] = c.last; a}[key] || rule['max']
+      end
+
+      def strategy
+        @strategy ||= rule['strategy']
       end
     end
   end
