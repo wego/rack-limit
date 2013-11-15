@@ -102,7 +102,7 @@ module Rack
 
 
       def cache_key(request)
-        [options[:key_prefix] || options[:prefix] || 'throttle', request.rule['prefix'], request.client_identifier].join(':')
+        [options[:key_prefix] || options[:prefix] || 'ratelimit', request.rule['prefix'], request.client_identifier].compact.join(':')
       end
 
       def cache
