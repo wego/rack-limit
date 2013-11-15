@@ -12,7 +12,7 @@ module Rack
       end
 
       def check_required
-        requirements = rule['required']
+        requirements = rule && rule['required']
         return unless requirements
 
         @missing_requirement = if requirements['params'].is_a?(Hash)
@@ -35,8 +35,7 @@ module Rack
       end
 
       def restrict_on_domain?(rule)
-        domain = env['server_name']
-        rule['domain'] ? domain == rule['domain'] : true
+        rule['domain'] ? host == rule['domain'] : true
       end
 
       def in_list?(list)
