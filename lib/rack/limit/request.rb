@@ -79,6 +79,10 @@ module Rack
         @identifier ||= client_identifier
       end
 
+      def limit_value
+        get_limit_params.pop
+      end
+
       def limits
         key = identifier.split(':').last
         (rule['limits'] || {}).reduce({}) { |a,c| a[c.first.to_s] = c.last; a}[key] || rule['max']

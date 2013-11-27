@@ -81,11 +81,31 @@ module Rack
       end
 
       def limit(request)
-        lim = begin
-                cache.get([request.rule['prefix'], request.identifier].compact.join(':'))
-              rescue
-              end || request.limits || options[:max] || 1000
-        request.limit = lim.to_i
+        request.limit = (lookup_limit(request) || request.limits || options[:max] || 1000).to_i
+      end
+
+      def cached_limit(request)
+        begin
+          cache.get([request.rule['prefix'], request.identifier].compact.join(':'))
+        rescue
+        end
+      end
+
+      def set_cached_limit(request, value)
+        begin
+          cache.set([request.rule['prefix'], expiry('daily'), request.identifier].compact.join(':'), value)
+        rescue
+        end
+        value
+      end
+
+      def lookup_limit(request)
+        lim = cached_limit(request)
+        unless lim
+          lim = options[:lookup] && options[:lookup].call(request.limit_value)
+          set_cached_limit(request, lim) if lim
+        end
+        lim
       end
 
       def expiry(strategy = 'daily')

@@ -8,8 +8,11 @@ In `config/initializers/rack_limit.rb`:
 ```ruby
 require 'redis'
 
-Rails.application.config.middleware.use Rack::Limit::Backends::Dalli, rules: YAML.load_file(File.join(Rails.root, 'config', 'rate_limit.yml')), cache: Dalli::Client.new
+Rails.application.config.middleware.use Rack::Limit::Backends::Dalli, rules: YAML.load_file(File.join(Rails.root, 'config', 'rate_limit.yml')), cache: Dalli::Client.new, lookup: Proc.new { |key| Api.get_limit(key) }
 ```
+
+`lookup` proc should return integer as limit
+
 
 In `config/rack_limit.yml`:
 
