@@ -29,8 +29,9 @@ module Rack
           return rate_limit_exceeded(request) if request.blacklisted?
 
           unless request.whitelisted?
-            allow = allowed?(request)
-            if allow
+            return api_key_expired(request, update_headers(request)) if limit(request) == -1
+
+            if allowed?(request)
               status, headers, body = app.call(env)
               return [status, headers.merge(update_headers(request)), body]
             else
@@ -93,7 +94,7 @@ module Rack
 
       def set_cached_limit(request, value)
         begin
-          cache.set([request.rule['prefix'], expiry('daily'), request.identifier].compact.join(':'), value)
+          cache.set([request.rule['prefix'], expiry('hourly'), request.identifier].compact.join(':'), value)
         rescue
         end
         value

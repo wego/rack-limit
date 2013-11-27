@@ -26,12 +26,11 @@ module Rack
         def set_cached_limit(request, value)
           begin
             key = [request.rule['prefix'], request.identifier].compact.join(':')
-            cache.set(key, value, expiry('daily'), raw: true)
+            cache.set(key, value, expiry('hourly'), raw: true)
           rescue
           end
           value
         end
-
       end
     end
   end

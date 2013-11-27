@@ -27,7 +27,7 @@ module Rack
           begin
             key = [request.rule['prefix'], request.identifier].compact.join(':')
             cache.set(key, value)
-            cache.expire(key, expiry('daily'))
+            cache.expire(key, expiry('hourly'))
           rescue
           end
           value
