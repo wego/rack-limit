@@ -143,6 +143,10 @@ module Rack
         http_error(request.rule['code'] || 403, request.rule['message'], headers)
       end
 
+      def api_key_expired(request, headers = {})
+        http_error(request.rule['code'] || 403, 'Api Key expired', headers)
+      end
+
       def http_status(code)
         [code, Rack::Utils::HTTP_STATUS_CODES[code]].join(' ')
       end
