@@ -16,7 +16,8 @@ module Rack
         return unless requirements
 
         @missing_requirement = if requirements['params'].is_a?(Hash)
-          requirements['params'].find { |param, message| !params[param] }
+          requirement = requirements['params'].find { |param, message| !params[param] }
+          requirement.pop if requirement
         else
           requirements['params'] unless params[requirements['params']]
         end
@@ -61,6 +62,8 @@ module Rack
           else
             [limit_source]
           end
+        else
+          []
         end
       end
 
@@ -80,7 +83,7 @@ module Rack
       end
 
       def limit_value
-        get_limit_params.pop
+        params[get_limit_params.pop]
       end
 
       def limits

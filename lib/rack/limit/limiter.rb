@@ -22,14 +22,17 @@ module Rack
 
       def call(env)
         request = Request.new(env, rules)
-        if request.rule
-          missing_param, message = request.missing_requirement
-          return http_error(403, message) if missing_param
 
+        if request.rule
+          message = request.missing_requirement
+          return http_error(403, message) if message
+
+          api_limit = limit(request)
+          return invalid_api_key(request) if api_limit == 0
           return rate_limit_exceeded(request) if request.blacklisted?
 
           unless request.whitelisted?
-            return api_key_expired(request, update_headers(request)) if limit(request) == -1
+            return api_key_expired(request, update_headers(request)) if api_limit == -1
 
             if allowed?(request)
               status, headers, body = app.call(env)
@@ -136,15 +139,19 @@ module Rack
       end
 
       def http_error(code, message = nil, headers = {})
-        [code, {'Content-Type' => 'text/plain; charset=utf-8'}.merge(headers), message.nil? ? [http_status(code) + "\n"] : [message + "\n"]]
+        [code, {'Content-Type' => 'application/json; charset=utf-8'}.merge(headers), message.nil? ? [http_status(code) + "\n"] : [message + "\n"]]
       end
 
       def rate_limit_exceeded(request, headers = {})
-        http_error(request.rule['code'] || 403, request.rule['message'], headers)
+        http_error(request.rule['code'] || 403, request.rule['message'] || http_status(403), headers)
       end
 
       def api_key_expired(request, headers = {})
-        http_error(request.rule['code'] || 403, 'Api Key expired', headers)
+        http_error(request.rule['code'] || 403, request.rule['expired'] || http_status(403), headers)
+      end
+
+      def invalid_api_key(request, headers = {})
+        http_error(request.rule['code'] || 403, request.rule['invalid'] || http_status(403), headers)
       end
 
       def http_status(code)
