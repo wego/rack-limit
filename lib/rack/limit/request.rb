@@ -3,24 +3,37 @@ require 'rack'
 module Rack
   module Limit
     class Request < Rack::Request
-      attr_accessor :rule, :identifier, :count, :limit, :missing_requirement
+      attr_accessor :rule, :identifier, :count, :limit, :missing_requirement, :limit_param, :limit_value, :limit_source
 
       def initialize(env, rules)
         super env
         @rule = rules.find { |rule| paths_matched?(rule) && restrict_on_domain?(rule) }
-        check_required
+        check_requirement
       end
 
-      def check_required
-        requirements = rule && rule['required']
+      def check_requirement
+        requirements = rule && rule['limit_by']
         return unless requirements
+        @missing_requirement = (rule['missing'] || '{"error": "required params not found"}') unless found_requirements?(requirements)
+      end
 
-        @missing_requirement = if requirements['params'].is_a?(Hash)
-          requirement = requirements['params'].find { |param, message| !params[param] }
-          requirement.pop if requirement
-        else
-          requirements['params'] unless params[requirements['params']]
+      def found_requirements?(requirements)
+        requirements.find do |source, values|
+          key = source == 'params' ? found_param(values) : found_header(values)
+          if key
+            @limit_source = source
+            @limit_value = source == 'params' ? params[key] : header(key)
+            @limit_param = key
+          end
         end
+      end
+
+      def found_param(keys)
+        keys.is_a?(Array) ? keys.find { |k| params[k] } : (params[keys] && keys)
+      end
+
+      def found_header(keys)
+        keys.is_a?(Array) ? keys.find { |k| header(k) } : (header(keys) && keys)
       end
 
       def blacklisted?
@@ -40,50 +53,11 @@ module Rack
       end
 
       def in_list?(list)
-        limit_source, limit_identifier = get_limit_params
-        if limit_source == 'params'
-          value = params[limit_identifier]
-        elsif limit_source == 'path'
-          value = path
-        else
-          value = ''
-        end
-        (rule[list] || []).include?(value)
-      end
-
-      def get_limit_params
-        limit_source = limit_by = rule && rule['limit_by']
-
-        if limit_by
-          if limit_by.is_a?(Hash)
-            limit_source = limit_by.keys.first
-            limit_identifier = limit_by[limit_source]
-            [limit_source, limit_identifier]
-          else
-            [limit_source]
-          end
-        else
-          []
-        end
-      end
-
-      def client_identifier
-        limit_source, limit_identifier = get_limit_params
-        if limit_source == 'params'
-          [limit_identifier, params[limit_identifier]].join(':')
-        elsif limit_source == 'path'
-          path 
-        else
-          ip.to_s
-        end
+        (rule[list] || []).include?(limit_value)
       end
 
       def identifier
-        @identifier ||= client_identifier
-      end
-
-      def limit_value
-        params[get_limit_params.pop]
+        limit_value
       end
 
       def limits
@@ -93,6 +67,10 @@ module Rack
 
       def strategy
         @strategy ||= rule['strategy']
+      end
+
+      def header(key)
+        env['HTTP_' + key.upcase.gsub('-', '_')]
       end
     end
   end

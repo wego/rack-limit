@@ -13,7 +13,7 @@ module Rack
 
         def set_cached_limit(request, value)
           begin
-            key = [request.rule['prefix'], request.identifier].compact.join(':')
+            key = [request.rule['limit_prefix'] || 'ratelimit:limit', request.identifier].compact.join(':')
             cache.set(key, value, expiry('hourly'), true)
           rescue => e
             puts e

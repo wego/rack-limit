@@ -13,12 +13,12 @@ module Rack
         end
 
         def cache_key(request)
-          [options[:key_prefix] || options[:prefix] || 'ratelimit', request.client_identifier].join(':')
+          [request.rule['count_prefix'] || 'ratelimit:count', request.identifier].join(':')
         end
 
         def cached_limit(request)
           begin
-            cache.get([request.rule['prefix'], request.identifier].compact.join(':'), true)
+            cache.get([request.rule['limit_prefix'] || 'ratelimit:limit', request.identifier].compact.join(':'), true)
           rescue
           end
         end

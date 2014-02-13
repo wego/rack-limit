@@ -90,14 +90,14 @@ module Rack
 
       def cached_limit(request)
         begin
-          cache.get([request.rule['prefix'], request.identifier].compact.join(':'))
+          cache.get([request.rule['limit_prefix'] || 'ratelimit:limit', request.identifier].compact.join(':'))
         rescue
         end
       end
 
       def set_cached_limit(request, value)
         begin
-          cache.set([request.rule['prefix'], expiry('hourly'), request.identifier].compact.join(':'), value)
+          cache.set([request.rule['limit_prefix'] || 'ratelimit:limit', expiry('hourly'), request.identifier].compact.join(':'), value)
         rescue
         end
         value
@@ -131,7 +131,7 @@ module Rack
       end
 
       def cache_key(request)
-        [options[:key_prefix] || options[:prefix] || 'ratelimit', timestamp(request.strategy) , request.client_identifier].compact.join(':')
+        [request.rule['count_prefix'] || 'ratelimit:count', timestamp(request.strategy) , request.identifier].compact.join(':')
       end
 
       def cache
@@ -152,6 +152,10 @@ module Rack
 
       def invalid_api_key(request, headers = {})
         http_error(request.rule['code'] || 403, request.rule['invalid'] || http_status(403), headers)
+      end
+
+      def missing_required(message, headers = {})
+        http_error(403, message, headers)
       end
 
       def http_status(code)

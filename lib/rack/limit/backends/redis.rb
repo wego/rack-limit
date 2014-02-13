@@ -20,12 +20,12 @@ module Rack
         end
 
         def cache_key(request)
-          [options[:key_prefix] || options[:prefix] || 'ratelimit', request.client_identifier].join(':')
+          [request.rule['count_prefix'] || 'ratelimit:count', request.identifier].join(':')
         end
 
         def set_cached_limit(request, value)
           begin
-            key = [request.rule['prefix'], request.identifier].compact.join(':')
+            key = [request.rule['limit_prefix'] || 'ratelimit:limit', request.identifier].compact.join(':')
             cache.set(key, value)
             cache.expire(key, expiry('hourly'))
           rescue
